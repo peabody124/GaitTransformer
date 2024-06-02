@@ -1,0 +1,33 @@
+[tool.black]
+line-length = 150
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "gait_transformer"
+version = "0.0.1"
+description = "Gait Transformer"
+authors = ["James Cotton <peabody124@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/peabody124/GaitTransformer"
+keywords = ["gait", "transformer", "biomechanics"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+python = ">=3.10"
+
+[tool.poetry.dependencies]
+tensorflow = "*"
+jax = "*"
+numpy = "*"
+
+[tool.poetry.urls]
+homepage = "https://github.com/peabody124/GaitTransformer"
+
+[tool.poetry.package.include]
+gait_transformer = ["assets/model_v0.2.h5"]
