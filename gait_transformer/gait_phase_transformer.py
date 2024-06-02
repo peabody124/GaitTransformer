@@ -3,10 +3,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-import tensorflow_addons as tfa
-
 
 # core transformer components
+
 
 def mlp(x, hidden_units, dropout_rate, activation=tf.nn.gelu):
     for units in hidden_units:
@@ -18,9 +17,15 @@ def mlp(x, hidden_units, dropout_rate, activation=tf.nn.gelu):
 class LayerScale(layers.Layer):
     def __init__(self, **kwargs):
         super(LayerScale, self).__init__(**kwargs)
+
     def build(self, input_shape):
         # lazy build with the projection dimension
-        self.scale = self.add_weight(shape=(1, 1, input_shape[-1]), initializer=tf.keras.initializers.Constant(0.1), dtype=self.dtype)
+        self.scale = self.add_weight(
+            shape=(1, 1, input_shape[-1]),
+            initializer=tf.keras.initializers.Constant(0.1),
+            dtype=self.dtype,
+        )
+
     def call(self, input, **kwargs):
         return input * self.scale
 
@@ -48,18 +53,32 @@ class FeedForward(keras.Sequential):
 
 
 class EncoderTransformerLayer(layers.Layer):
-    def __init__(self, embed_dim, num_heads, ff_dim_scale=1.0, dropout_rate=0.0, survival_prob=1.0, layer_scale=False, att=None, activation=tf.nn.gelu):
-        """ Encoder transformer block similar to DETR implementation
+    def __init__(
+        self,
+        embed_dim,
+        num_heads,
+        ff_dim_scale=1.0,
+        dropout_rate=0.0,
+        survival_prob=1.0,
+        layer_scale=False,
+        att=None,
+        activation=tf.nn.gelu,
+    ):
+        """Encoder transformer block similar to DETR implementation
 
-            Params:
-                embed_dim: dimension to tokens
-                num_heads: number of heads for MHSA
-                ff_dim: list of dimensions for hidden layers in FFN
-                att (optional): MultiHeadAttention layer, can be passed to share weights
+        Params:
+            embed_dim: dimension to tokens
+            num_heads: number of heads for MHSA
+            ff_dim: list of dimensions for hidden layers in FFN
+            att (optional): MultiHeadAttention layer, can be passed to share weights
         """
         super(EncoderTransformerLayer, self).__init__()
         self.att = att or layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
-        self.ffn = FeedForward(int(embed_dim * ff_dim_scale), dropout_rate=dropout_rate, activation=activation)
+        self.ffn = FeedForward(
+            int(embed_dim * ff_dim_scale),
+            dropout_rate=dropout_rate,
+            activation=activation,
+        )
         self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = layers.LayerNormalization(epsilon=1e-6)
 
@@ -67,7 +86,7 @@ class EncoderTransformerLayer(layers.Layer):
             self.layerscale1 = LayerScale()
             self.layerscale2 = LayerScale()
         else:
-            self.layerscale1 = self.layerscale2 = layers.Lambda(lambda x : x)
+            self.layerscale1 = self.layerscale2 = layers.Lambda(lambda x: x)
 
         if survival_prob < 1.0:
             import tensorflow_addons as tfa
@@ -86,27 +105,28 @@ class EncoderTransformerLayer(layers.Layer):
 
         attn_output = self.att(query, key=key, value=value, training=training)
         attn_output = self.layerscale1(attn_output, training=training)
-        out1 = self.layernorm1(self.stochastic_depth1([value,  attn_output], training=training))
+        out1 = self.layernorm1(self.stochastic_depth1([value, attn_output], training=training))
 
         ffn_output = self.ffn(out1, training=training)
         ffn_output = self.layerscale2(ffn_output, training=training)
         return self.layernorm2(self.stochastic_depth2([out1, ffn_output], training=training))
 
 
-def get_pos_encoding(positions, depth, min_rate=1.0/10000.0, dtype=None):
+def get_pos_encoding(positions, depth, min_rate=1.0 / 10000.0, dtype=None):
     positions = tf.cast(positions, dtype=dtype)
-    angle_rate_exponents = tf.cast(tf.linspace(0,1,depth//2), dtype=dtype)
-    angle_rates = min_rate**(angle_rate_exponents)
-    angle_rads = tf.expand_dims(positions, 1)*tf.expand_dims(angle_rates, axis=0)
+    angle_rate_exponents = tf.cast(tf.linspace(0, 1, depth // 2), dtype=dtype)
+    angle_rates = min_rate ** (angle_rate_exponents)
+    angle_rads = tf.expand_dims(positions, 1) * tf.expand_dims(angle_rates, axis=0)
     sines = tf.math.sin(angle_rads)
     cosines = tf.math.cos(angle_rads)
     pos_encoding = tf.concat([sines, cosines], axis=-1)
     return pos_encoding
 
 
-def get_pos_encoding_matrix(num_positions, depth, min_rate=1.0/10000.0, dtype=tf.float32):
+def get_pos_encoding_matrix(num_positions, depth, min_rate=1.0 / 10000.0, dtype=tf.float32):
     positions = tf.range(num_positions)
     return get_pos_encoding(positions, depth, min_rate, dtype)
+
 
 # loosely based on https://keras.io/examples/vision/image_classification_with_vision_transformer/
 # with some guidance from https://github.com/Visual-Behavior/detr-tensorflow/blob/main/detr_tf/networks/transformer.py
@@ -116,23 +136,24 @@ class PositionalEncoding(layers.Layer):
     def __init__(self, embed_dim):
         super(PositionalEncoding, self).__init__()
         self.embed_dim = embed_dim
+
     def call(self, input, training=None):
         T = tf.shape(input)[1]
 
 
 def get_gait_phase_transformer(
     dataset,
-    projection_dim = 256,
-    num_heads = 4,
-    ffn_units_scale = 2,
-    transformer_layers = 5,
-    dropout_rate = 0.0,
-    output_dropout_rate = 0.0,
-    survival_prob = 1.0,
-    layer_scale = False,
-    shared = True,
-    repeat_positional = True,
-    mlp_head_units = [256, 256]  # Size of the dense layers of the final classifier
+    projection_dim=256,
+    num_heads=4,
+    ffn_units_scale=2,
+    transformer_layers=5,
+    dropout_rate=0.0,
+    output_dropout_rate=0.0,
+    survival_prob=1.0,
+    layer_scale=False,
+    shared=True,
+    repeat_positional=True,
+    mlp_head_units=[256, 256],  # Size of the dense layers of the final classifier
 ):
 
     input_shape = dataset.element_spec[0].shape
@@ -146,52 +167,72 @@ def get_gait_phase_transformer(
 
     # concatenate joints into one dimension
     flat_inputs = tf.reshape(inputs, [tf.shape(inputs)[0], tf.shape(inputs)[1], num_joints * joint_dim])
-    encoded_poses = layers.Dense(units=projection_dim, name='embedding')(flat_inputs)
+    encoded_poses = layers.Dense(units=projection_dim, name="embedding")(flat_inputs)
 
-    positional_encoding = tf.expand_dims(get_pos_encoding_matrix(tf.shape(inputs)[1], projection_dim, dtype=encoded_poses.dtype), axis=0)
+    positional_encoding = tf.expand_dims(
+        get_pos_encoding_matrix(tf.shape(inputs)[1], projection_dim, dtype=encoded_poses.dtype),
+        axis=0,
+    )
 
     # to reuse the parameters for attention itself
     shared_att = layers.MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim, dropout=dropout_rate) if shared else None
 
     # stack some of these transformers
     for i in range(transformer_layers):
-        enc = EncoderTransformerLayer(projection_dim, num_heads, ffn_units_scale, survival_prob=survival_prob, dropout_rate=dropout_rate, layer_scale=layer_scale, att=shared_att)
-        encoded_poses = enc(encoded_poses, positional_encoding if (i == 0 or repeat_positional) else None)
+        enc = EncoderTransformerLayer(
+            projection_dim,
+            num_heads,
+            ffn_units_scale,
+            survival_prob=survival_prob,
+            dropout_rate=dropout_rate,
+            layer_scale=layer_scale,
+            att=shared_att,
+        )
+        encoded_poses = enc(
+            encoded_poses,
+            positional_encoding if (i == 0 or repeat_positional) else None,
+        )
 
     features = mlp(encoded_poses, hidden_units=mlp_head_units, dropout_rate=output_dropout_rate)
     output = layers.Dense(num_outputs)(features)
     output = tf.expand_dims(output, axis=-1)
 
-    return keras.Model(inputs=inputs, outputs=output, name='gait_phase_transformer')
+    return keras.Model(inputs=inputs, outputs=output, name="gait_phase_transformer")
 
 
 def get_gait_phase_stride_transformer(
-    dataset = None,
-    M = 17,
-    kp_dim = 17,
+    dataset=None,
+    M=17,
+    kp_dim=17,
     kp_idx_keep=None,
-    projection_dim = 256,
-    num_heads = 6,
-    ffn_units_scale = 2,
-    transformer_layers = 5,
-    dropout_rate = 0.1,
-    output_dropout_rate = 0.0,
-    survival_prob = 1.0,
-    layer_scale = True,
-    shared = False,
-    repeat_positional = False,
+    projection_dim=256,
+    num_heads=6,
+    ffn_units_scale=2,
+    transformer_layers=5,
+    dropout_rate=0.1,
+    output_dropout_rate=0.0,
+    survival_prob=1.0,
+    layer_scale=True,
+    shared=False,
+    repeat_positional=False,
     keypoint_mlp=None,
     activation=tf.nn.gelu,
     derotate=False,
     center=False,
     physics_consistency_loss=0.0,
     foot_vel_loss=False,
-    mlp_head_units = [256, 256],  # Size of the dense layers of the final classifier
+    mlp_head_units=[256, 256],  # Size of the dense layers of the final classifier
 ):
 
     if dataset is None:
-        dataset_sig = ((tf.TensorSpec(shape=[None, None, kp_dim, 3], dtype=tf.float32), tf.TensorSpec(shape=(None), dtype=tf.float32)),
-                        tf.TensorSpec(shape=[None, None, M, 1], dtype=tf.float32), tf.TensorSpec(shape=[None, None, M, 1], dtype=tf.float32))
+        dataset_sig = (
+            (
+                tf.TensorSpec(shape=[None, None, kp_dim, 3], dtype=tf.float32),
+                tf.TensorSpec(shape=(None), dtype=tf.float32),
+            ),
+            tf.TensorSpec(shape=[None, None, M, 1], dtype=tf.float32),
+            tf.TensorSpec(shape=[None, None, M, 1], dtype=tf.float32),
+        )
     else:
         dataset_sig = dataset.element_spec
 
@@ -207,10 +248,10 @@ def get_gait_phase_stride_transformer(
     x = kp_inputs
 
     if derotate:
-        print('Derotate')
-        #right_hip_idx = joint_names.index('Right hip')
-        #left_hip_idx = joint_names.index('Left hip')
-        #thorax_idx = joint_names.index('Thorax')
+        print("Derotate")
+        # right_hip_idx = joint_names.index('Right hip')
+        # left_hip_idx = joint_names.index('Left hip')
+        # thorax_idx = joint_names.index('Thorax')
         right_hip_idx, left_hip_idx, thorax_idx = 1, 4, 8
 
         mid_hip = (kp_inputs[:, :, right_hip_idx, :] + kp_inputs[:, :, left_hip_idx, :]) / 2
@@ -224,7 +265,7 @@ def get_gait_phase_stride_transformer(
         v1, _ = tf.linalg.normalize(v1, axis=-1)
         v2, _ = tf.linalg.normalize(v2, axis=-1)
 
-        v3 = -tf.linalg.cross(v1, v2)   # compute the forward axis
+        v3 = -tf.linalg.cross(v1, v2)  # compute the forward axis
         v3, _ = tf.linalg.normalize(v3, axis=-1)
         v2o = tf.linalg.cross(v1, v3)  # recompute the properly orthogonal torso direction
 
@@ -232,7 +273,7 @@ def get_gait_phase_stride_transformer(
 
         x = tf.linalg.matmul(x, R)
     elif center:
-        print('Center')
+        print("Center")
         # expects the data to be 2D keypoints so joint names order is different
         kp = x
 
@@ -241,7 +282,7 @@ def get_gait_phase_stride_transformer(
 
         x = x - mid_hip[:, :, None, :]
     else:
-        print('No derotate')
+        print("No derotate")
 
     if kp_idx_keep is not None:
         kp = x
@@ -250,16 +291,24 @@ def get_gait_phase_stride_transformer(
         x = layers.Lambda(lambda x: tf.experimental.numpy.take(x, kp_idx_keep, 2))(kp)
 
     if keypoint_mlp is not None:
-        x = mlp(x, hidden_units=mlp_head_units + [3], dropout_rate=0.0, activation=activation)
+        x = mlp(
+            x,
+            hidden_units=mlp_head_units + [3],
+            dropout_rate=0.0,
+            activation=activation,
+        )
 
     # concatenate joints into one dimension
     flat_inputs = tf.reshape(x, [tf.shape(kp_inputs)[0], tf.shape(x)[1], num_joints * joint_dim])
-    encoded_poses = layers.Dense(units=projection_dim, name='embedding')(flat_inputs)
+    encoded_poses = layers.Dense(units=projection_dim, name="embedding")(flat_inputs)
 
-    positional_encoding = tf.expand_dims(get_pos_encoding_matrix(tf.shape(kp_inputs)[1], projection_dim, dtype=encoded_poses.dtype), axis=0)
+    positional_encoding = tf.expand_dims(
+        get_pos_encoding_matrix(tf.shape(kp_inputs)[1], projection_dim, dtype=encoded_poses.dtype),
+        axis=0,
+    )
 
     flat_demographics = tf.reshape(height_inputs, [tf.shape(height_inputs)[0], 1, 1])
-    encoded_demographics = layers.Dense(units=projection_dim, name='demographics_embedding')(flat_demographics)
+    encoded_demographics = layers.Dense(units=projection_dim, name="demographics_embedding")(flat_demographics)
     demographics_encoding = tf.reshape(layers.Embedding(1, projection_dim)(tf.range(10)), [1, 10, projection_dim])
 
     positional_encoding = tf.concat([demographics_encoding, positional_encoding], axis=1)
@@ -270,12 +319,27 @@ def get_gait_phase_stride_transformer(
 
     # stack some of these transformers
     for i in range(transformer_layers):
-        enc = EncoderTransformerLayer(projection_dim, num_heads, ffn_units_scale,
-                                      survival_prob=survival_prob, dropout_rate=dropout_rate,
-                                      layer_scale=layer_scale, att=shared_att, activation=activation)
-        encoded_features = enc(encoded_features, positional_encoding if (i == 0 or repeat_positional) else None)
+        enc = EncoderTransformerLayer(
+            projection_dim,
+            num_heads,
+            ffn_units_scale,
+            survival_prob=survival_prob,
+            dropout_rate=dropout_rate,
+            layer_scale=layer_scale,
+            att=shared_att,
+            activation=activation,
+        )
+        encoded_features = enc(
+            encoded_features,
+            positional_encoding if (i == 0 or repeat_positional) else None,
+        )
 
-    features = mlp(encoded_features, hidden_units=mlp_head_units, dropout_rate=output_dropout_rate, activation=activation)
+    features = mlp(
+        encoded_features,
+        hidden_units=mlp_head_units,
+        dropout_rate=output_dropout_rate,
+        activation=activation,
+    )
     output_layer = layers.Dense(num_outputs)
     output = output_layer(features)
     output = tf.expand_dims(output, axis=-1)
@@ -288,10 +352,10 @@ def get_gait_phase_stride_transformer(
 
             def call(self, x):
 
-                dt = 1/30.0
+                dt = 1 / 30.0
                 discrete_velocity = (x[:, 1:, 8:10, :] - x[:, :-1, 8:10, :]) / dt
                 adjusted_velocity = x[:, :-1, 11:13, :] - x[:, :-1, 10:11, :]
-                velocity_error = tf.reduce_sum((discrete_velocity - adjusted_velocity)**2) * physics_consistency_loss
+                velocity_error = tf.reduce_sum((discrete_velocity - adjusted_velocity) ** 2) * physics_consistency_loss
 
                 self.add_loss(velocity_error)
 
@@ -306,14 +370,14 @@ def get_gait_phase_stride_transformer(
                 right_down_vel = tf.boolean_mask(x[:, :, 12, 0], right_down)
 
                 if foot_vel_loss:
-                    self.add_loss(tf.reduce_sum(left_down_vel ** 2) * physics_consistency_loss)
-                    self.add_loss(tf.reduce_sum(right_down_vel ** 2) * physics_consistency_loss)
+                    self.add_loss(tf.reduce_sum(left_down_vel**2) * physics_consistency_loss)
+                    self.add_loss(tf.reduce_sum(right_down_vel**2) * physics_consistency_loss)
 
                 return x
 
         output = LossLayer()(output)
 
-    model = keras.Model(inputs=[kp_inputs, height_inputs], outputs=output, name='gait_phase_transformer')
+    model = keras.Model(inputs=[kp_inputs, height_inputs], outputs=output, name="gait_phase_transformer")
 
     return model
 
@@ -321,9 +385,9 @@ def get_gait_phase_stride_transformer(
 def shift_generator(keypoints3d, stride=1, L=90):
     N = keypoints3d.shape[0]
     length_idx = np.arange(L)
-    samples = np.arange(0, N-L+1, stride)
+    samples = np.arange(0, N - L + 1, stride)
     for s in samples:
-        yield keypoints3d[length_idx+s]
+        yield keypoints3d[length_idx + s]
 
 
 def chunk_generator(keypoints3d, stride=1, L=90, batch_size=32):
@@ -349,7 +413,7 @@ def gait_phase_stride_inference(keypoints3d, height, regressor, L, batch_size=12
     # compute rolling phases
     if keypoints3d.shape[0] >= L:
 
-        O = (L-1) // 2
+        O = (L - 1) // 2
 
         chunk_iter = chunk_generator(keypoints3d, L=L, batch_size=batch_size)
         results = []
@@ -359,11 +423,10 @@ def gait_phase_stride_inference(keypoints3d, height, regressor, L, batch_size=12
             results.append(pred)
 
         results = np.concatenate(results, axis=0)
-        phases = np.concatenate([results[0, :O], results[:, O], results[-1, O+1:]], axis=0)
+        phases = np.concatenate([results[0, :O], results[:, O], results[-1, O + 1 :]], axis=0)
 
     else:
-        phases = regressor((keypoints3d[None, ...], height[None, ...] / 1000.0),
-                           training=False)[0, ..., 0].numpy()
+        phases = regressor((keypoints3d[None, ...], height[None, ...] / 1000.0), training=False)[0, ..., 0].numpy()
 
     stride = phases[:, 8:]
     phases = phases[:, :8]

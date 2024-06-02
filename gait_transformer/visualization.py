@@ -67,22 +67,7 @@ def video_overlay(
 
     if compress:
         fd, temp = tempfile.mkstemp(suffix=".mp4")
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-i",
-                output_name,
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-c:v",
-                "libx264",
-                "-b:v",
-                bitrate,
-                temp,
-            ]
-        )
+        subprocess.run(["ffmpeg", "-y", "-i", output_name, "-hide_banner", "-loglevel", "error", "-c:v", "libx264", "-b:v", bitrate, temp])
         os.close(fd)
         shutil.move(temp, output_name)
 
@@ -158,15 +143,7 @@ def get_trace_overlay_fn(phases, stride, walking_prob=None):
             y = scale_y(100, 1300) - stride[idx_range, 1] * scale_y(100, 1300)
             image = plot_trace(image, x, y, left_color)
 
-            cv2.putText(
-                image,
-                "Foot pos",
-                (scale_x(500), scale_y(100, 1300)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
+            cv2.putText(image, "Foot pos", (scale_x(500), scale_y(100, 1300)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
             # foot vel
             y = scale_y(300, 1300) - stride[idx_range, 3] * scale_y(20, 1300)
@@ -174,30 +151,14 @@ def get_trace_overlay_fn(phases, stride, walking_prob=None):
             y = scale_y(300, 1300) - stride[idx_range, 4] * scale_y(20, 1300)
             image = plot_trace(image, x, y, left_color)
 
-            cv2.putText(
-                image,
-                "Foot vel",
-                (scale_x(500), scale_y(300, 1300)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
+            cv2.putText(image, "Foot vel", (scale_x(500), scale_y(300, 1300)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
             # pelvis vel
             y = scale_y(500, 1300) - stride[idx_range, 2] * scale_y(100, 1300)
             image = plot_trace(image, x, y, [0, 128, 0])
             image = plot_trace(image, x, scale_y(500, 1300) - y * 0, [0, 0, 0])
 
-            cv2.putText(
-                image,
-                "Pelvis vel",
-                (scale_x(500), scale_y(500, 1300)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
+            cv2.putText(image, "Pelvis vel", (scale_x(500), scale_y(500, 1300)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
             # hip
             y = scale_y(700, 1300) - stride[idx_range, 5] * scale_y(100, 1300)
@@ -206,15 +167,7 @@ def get_trace_overlay_fn(phases, stride, walking_prob=None):
             image = plot_trace(image, x, y, left_color)
             image = plot_trace(image, x, scale_y(700, 1300) - y * 0, [0, 0, 0])
 
-            cv2.putText(
-                image,
-                "Hip",
-                (scale_x(550), scale_y(700, 1300)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
+            cv2.putText(image, "Hip", (scale_x(550), scale_y(700, 1300)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
             # knee
             y = scale_y(900, 1300) - stride[idx_range, 7] * scale_y(100, 1300)
@@ -223,15 +176,7 @@ def get_trace_overlay_fn(phases, stride, walking_prob=None):
             image = plot_trace(image, x, y, left_color)
             image = plot_trace(image, x, scale_y(900, 1300) + y * 0, [0, 0, 0])
 
-            cv2.putText(
-                image,
-                "Knee",
-                (scale_x(550), scale_y(900, 1300)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
+            cv2.putText(image, "Knee", (scale_x(550), scale_y(900, 1300)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
             # phases
             y = scale_y(1100, 1300) - phases[idx_range, 0] * scale_y(100, 1300)
@@ -243,47 +188,23 @@ def get_trace_overlay_fn(phases, stride, walking_prob=None):
             y = scale_y(1100, 1300) - phases[idx_range, 3] * scale_y(100, 1300)
             image = plot_trace(image, x, y, [c // 2 for c in right_color])
 
-            cv2.putText(
-                image,
-                "Phases",
-                (scale_x(550), scale_y(1100, 1300)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
+            cv2.putText(image, "Phases", (scale_x(550), scale_y(1100, 1300)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
             if walking_prob is not None:
                 # walking prob
                 y = scale_y(1300, 1300) - walking_prob[idx_range] * scale_y(50, 1300)
                 image = plot_trace(image, x, y, [0, 128, 0])
                 image = plot_trace(image, x, scale_y(1300, 1300) - 0 * y, [0, 0, 0])
-                cv2.putText(
-                    image,
-                    "Prob",
-                    (scale_x(550), scale_y(1300, 1300)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (255, 255, 255),
-                    2,
-                )
+                cv2.putText(image, "Prob", (scale_x(550), scale_y(1300, 1300)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-            cv2.line(
-                image,
-                (int(np.mean(x)), scale_y(1300, 1300)),
-                (int(np.mean(x)), 0),
-                (255, 255, 255),
-                4,
-            )
+            cv2.line(image, (int(np.mean(x)), scale_y(1300, 1300)), (int(np.mean(x)), 0), (255, 255, 255), 4)
 
         return image
 
     return plot_traces
 
 
-def make_overlay(
-    video: str, phases: np.array, stride: np.array, keypoints: np.array, outname=None
-):
+def make_overlay(video: str, phases: np.array, stride: np.array, keypoints: np.array, outname=None):
     """
     Make a gait transformer overlay video
 
@@ -313,34 +234,14 @@ def make_overlay(
         down = [left_down[idx], right_down[idx]]
 
         if down[0]:
-            image = draw_keypoints(
-                image,
-                keypoints[idx, ankle_idx[0] : ankle_idx[0] + 1],
-                radius=15,
-                color=(0, 255, 0),
-            )
+            image = draw_keypoints(image, keypoints[idx, ankle_idx[0] : ankle_idx[0] + 1], radius=15, color=(0, 255, 0))
         else:
-            image = draw_keypoints(
-                image,
-                keypoints[idx, ankle_idx[0] : ankle_idx[0] + 1],
-                radius=15,
-                color=(255, 0, 0),
-            )
+            image = draw_keypoints(image, keypoints[idx, ankle_idx[0] : ankle_idx[0] + 1], radius=15, color=(255, 0, 0))
 
         if down[1]:
-            image = draw_keypoints(
-                image,
-                keypoints[idx, ankle_idx[1] : ankle_idx[1] + 1],
-                radius=15,
-                color=(0, 255, 0),
-            )
+            image = draw_keypoints(image, keypoints[idx, ankle_idx[1] : ankle_idx[1] + 1], radius=15, color=(0, 255, 0))
         else:
-            image = draw_keypoints(
-                image,
-                keypoints[idx, ankle_idx[1] : ankle_idx[1] + 1],
-                radius=15,
-                color=(255, 0, 0),
-            )
+            image = draw_keypoints(image, keypoints[idx, ankle_idx[1] : ankle_idx[1] + 1], radius=15, color=(255, 0, 0))
 
         image = plot_traces(image, idx)
 
