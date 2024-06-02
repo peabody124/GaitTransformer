@@ -369,3 +369,37 @@ def gait_phase_stride_inference(keypoints3d, height, regressor, L, batch_size=12
     phases = phases[:, :8]
 
     return phases, stride
+
+
+def load_default_model():
+
+    # default model is in the assets directory below this file
+    import os
+
+    model_file = os.path.join(os.path.dirname(__file__), "assets", "model_v0.2.h5")
+
+    model_params = {
+        "transformer_layers": 6,
+        "ffn_units_scale": 2,
+        "projection_dim": 128,
+        "layer_scale": False,
+        "survival_prob": 1.0,
+        "dropout_rate": 0.1,
+        "num_heads": 3,
+        "repeat_positional": True,
+        "shared": True,
+        "output_dropout_rate": 0,
+        "derotate": False,
+        "physics_consistency_loss": 0.001,
+        "foot_vel_loss": False,
+        "kp_idx_keep": [0, 1, 2, 3, 4, 5, 6, 11, 12, 13, 14, 15, 16],
+        "mlp_head_units": [256, 256],
+        "M": 19,
+        "kp_dim": 17,
+    }
+
+    transformer_model = get_gait_phase_stride_transformer(**model_params)
+
+    transformer_model.load_weights(model_file)
+
+    return transformer_model
