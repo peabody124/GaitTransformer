@@ -70,6 +70,8 @@ class EncoderTransformerLayer(layers.Layer):
             self.layerscale1 = self.layerscale2 = layers.Lambda(lambda x : x)
 
         if survival_prob < 1.0:
+            import tensorflow_addons as tfa
+
             self.stochastic_depth1 = tfa.layers.StochasticDepth(survival_prob)
             self.stochastic_depth2 = tfa.layers.StochasticDepth(survival_prob)
         else:
