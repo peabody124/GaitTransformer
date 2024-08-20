@@ -111,6 +111,22 @@ class EncoderTransformerLayer(layers.Layer):
         ffn_output = self.layerscale2(ffn_output, training=training)
         return self.layernorm2(self.stochastic_depth2([out1, ffn_output], training=training))
 
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update(
+            {
+                "att": self.att,
+                "ffn": self.ffn,
+                "layernorm1": self.layernorm1,
+                "layernorm2": self.layernorm2,
+                "layerscale1": self.layerscale1,
+                "layerscale2": self.layerscale2,
+                "stochastic_depth1": self.stochastic_depth1,
+                "stochastic_depth2": self.stochastic_depth2,
+            }
+        )
+        return config
+
 
 def get_pos_encoding(positions, depth, min_rate=1.0 / 10000.0, dtype=None):
     positions = tf.cast(positions, dtype=dtype)
