@@ -158,9 +158,11 @@ class PositionalEncodingLayer(layers.Layer):
         print(tf.shape(inputs))
 
         positions = inputs.shape[1]
+        positions = tf.range(positions)
+
         depth = inputs.shape[2]
         print(f"positional encoding: {positions} x {depth}")
-        return get_pos_encoding(positions, depth, self.min_rate, dtype=inputs.dtype)
+        return tf.expand_dims(get_pos_encoding(positions, depth, self.min_rate, dtype=inputs.dtype), axis=0)
 
     def compute_output_shape(self, input_shape):
         return input_shape
@@ -327,27 +329,21 @@ def get_gait_phase_stride_transformer(
 
     #### Input Encoding
 
-    # concatenate joints into 1 dimension and then project into the embedding dimension. this produces a
-    # None x None x 128 tensor where the first two dimensions are batch and time.
-    flat_inputs = layers.Reshape((None, num_joints * joint_dim))(x)
-    print(f"flat_inputs shape: {flat_inputs.shape}")
-    encoded_poses = layers.Dense(units=projection_dim, name="embedding")(flat_inputs)
-    print(f"encoded_poses shape: {encoded_poses.shape}")
-
-    # and create the positional encoding for these inputs
-    positional_encoding = PositionalEncodingLayer()(encoded_poses)
-
-    # now project demographics (currently only height) into a None x 1 x 1 tensor for batch size, no time
-    # then project into the embedding dimension.
     flat_demographics = layers.Reshape((1, 1))(height_inputs)
-    print(f"flat_demographics shape: {flat_demographics.shape}")
     encoded_demographics = layers.Dense(units=projection_dim, name="demographics_embedding")(flat_demographics)
-    print(f"encoded_demographics shape: {encoded_demographics.shape}")
 
     # and create a corresponding encoding layer
     demographics_encoding = tf.reshape(layers.Embedding(1, projection_dim)(tf.range(10)), [10, projection_dim])
     demographics_encoding = tf.expand_dims(demographics_encoding, axis=0)
     print(f"demographics_encoding shape: {demographics_encoding.shape}")
+
+    # concatenate joints into 1 dimension and then project into the embedding dimension. this produces a
+    # None x None x 128 tensor where the first two dimensions are batch and time.
+    flat_inputs = layers.Reshape((None, num_joints * joint_dim))(x)
+    encoded_poses = layers.Dense(units=projection_dim, name="embedding")(flat_inputs)
+
+    # and create the positional encoding for these inputs
+    positional_encoding = PositionalEncodingLayer()(encoded_poses)
 
     # create the position encoding that combines both the demographics and for the poses
     positional_encoding = layers.Lambda(lambda x: tf.concat([demographics_encoding, x], axis=1))(positional_encoding)
