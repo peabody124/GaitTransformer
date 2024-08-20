@@ -148,13 +148,20 @@ def get_pos_encoding_matrix(num_positions, depth, min_rate=1.0 / 10000.0, dtype=
 # with some guidance from https://github.com/Visual-Behavior/detr-tensorflow/blob/main/detr_tf/networks/transformer.py
 
 
-class PositionalEncoding(layers.Layer):
-    def __init__(self, embed_dim):
-        super(PositionalEncoding, self).__init__()
-        self.embed_dim = embed_dim
+class PositionalEncodingLayer(layers.Layer):
+    def __init__(self, min_rate=1.0 / 10000.0, **kwargs):
+        super(PositionalEncodingLayer, self).__init__(**kwargs)
+        self.min_rate = min_rate
 
-    def call(self, input, training=None):
-        T = tf.shape(input)[1]
+    def call(self, inputs):
+        positions = inputs.shape[1]
+        positions = tf.range(positions)
+
+        depth = inputs.shape[2]
+        return tf.expand_dims(get_pos_encoding(positions, depth, self.min_rate, dtype=inputs.dtype), axis=0)
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
 
 def get_gait_phase_transformer(
@@ -252,6 +259,7 @@ def get_gait_phase_stride_transformer(
     else:
         dataset_sig = dataset.element_spec
 
+    print(dataset_sig)
     input_shape = dataset_sig[0][0].shape
     T = input_shape[1]  # sequence length
     num_joints = input_shape[2]
@@ -314,21 +322,29 @@ def get_gait_phase_stride_transformer(
             activation=activation,
         )
 
-    # concatenate joints into one dimension
-    flat_inputs = tf.reshape(x, [tf.shape(kp_inputs)[0], tf.shape(x)[1], num_joints * joint_dim])
+    #### Input Encoding
+
+    flat_demographics = layers.Reshape((1, 1))(height_inputs)
+    encoded_demographics = layers.Dense(units=projection_dim, name="demographics_embedding")(flat_demographics)
+
+    # and create a corresponding encoding layer
+    demographics_encoding = tf.reshape(layers.Embedding(1, projection_dim)(tf.range(10)), [10, projection_dim])
+    demographics_encoding = tf.expand_dims(demographics_encoding, axis=0)
+
+    # concatenate joints into 1 dimension and then project into the embedding dimension. this produces a
+    # None x None x 128 tensor where the first two dimensions are batch and time.
+    flat_inputs = layers.Reshape((None, num_joints * joint_dim))(x)
     encoded_poses = layers.Dense(units=projection_dim, name="embedding")(flat_inputs)
 
-    positional_encoding = tf.expand_dims(
-        get_pos_encoding_matrix(tf.shape(kp_inputs)[1], projection_dim, dtype=encoded_poses.dtype),
-        axis=0,
-    )
+    # and create the positional encoding for these inputs
+    positional_encoding = PositionalEncodingLayer()(encoded_poses)
 
-    flat_demographics = tf.reshape(height_inputs, [tf.shape(height_inputs)[0], 1, 1])
-    encoded_demographics = layers.Dense(units=projection_dim, name="demographics_embedding")(flat_demographics)
-    demographics_encoding = tf.reshape(layers.Embedding(1, projection_dim)(tf.range(10)), [1, 10, projection_dim])
+    # create the position encoding that combines both the demographics and for the poses
+    positional_encoding = layers.Lambda(lambda x: tf.concat([demographics_encoding, x], axis=1))(positional_encoding)
 
-    positional_encoding = tf.concat([demographics_encoding, positional_encoding], axis=1)
-    encoded_features = tf.concat([tf.tile(encoded_demographics, [1, 10, 1]), encoded_poses], axis=1)
+    # combine the demographcis and then poses in the time dimension. note that demographics are overrepresented.
+    # by inputting 10 times.
+    encoded_features = keras.ops.concatenate([keras.ops.tile(encoded_demographics, [1, 10, 1]), encoded_poses], axis=1)
 
     # to reuse the parameters for attention itself
     shared_att = layers.MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim, dropout=dropout_rate) if shared else None
@@ -358,9 +374,9 @@ def get_gait_phase_stride_transformer(
     )
     output_layer = layers.Dense(num_outputs)
     output = output_layer(features)
-    output = tf.expand_dims(output, axis=-1)
 
-    output = output[:, 10:, :, :]
+    output = layers.Lambda(lambda x: tf.expand_dims(x, axis=-1))(output)
+    output = layers.Lambda(lambda x: x[:, 10:, :, :])(output)
 
     if physics_consistency_loss > 0:
 
